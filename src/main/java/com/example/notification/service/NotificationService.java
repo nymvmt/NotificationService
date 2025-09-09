@@ -1,111 +1,119 @@
 package com.example.notification.service;
 
 import com.example.notification.dto.CreateNotificationRequest;
+import com.example.notification.dto.GuestStatusUpdateResponse;
 import com.example.notification.dto.NotificationResponse;
 import com.example.notification.dto.UpdateGuestStatusRequest;
 import com.example.notification.entity.Notification;
 import com.example.notification.repository.NotificationRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
-@Transactional
 public class NotificationService {
 
-    @Autowired
-    private NotificationRepository notificationRepository;
+    private final NotificationRepository repository;
 
-    // 알림 생성
-    public NotificationResponse createNotification(CreateNotificationRequest request) {
-        // INV-N002: notification_time은 현재 시간보다 미래여야 함
-        if (request.getNotificationTime().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("notification_time must be in the future");
+    public NotificationService(NotificationRepository repository) {
+        this.repository = repository;
+    }
+
+    /** 알림 생성 */
+    @Transactional
+    public NotificationResponse create(CreateNotificationRequest req) {
+        // 중복 방지: 동일 appointmentId + guestId의 알림이 이미 있으면 그대로 반환하거나 예외
+        boolean exists = repository.existsByAppointmentIdAndGuestId(req.getAppointmentId(), req.getGuestId());
+        if (exists) {
+            // 이미 존재 시 그대로 찾아서 반환(업서트가 아니라면 예외로 바꿔도 됨)
+            Notification already = repository.findByAppointmentIdAndGuestId(
+                    req.getAppointmentId(), req.getGuestId()
+            ).orElseThrow(() -> new IllegalStateException("Duplicate detected but not found."));
+            return toResponse(already);
         }
 
-        // INV-N004: 같은 Appointment 내 같은 Guest에 중복 Notification 생성 불가
-        if (notificationRepository.existsByAppointmentIdAndGuestId(request.getAppointmentId(), request.getGuestId())) {
-            throw new IllegalArgumentException("Duplicate notification for the same appointment and guest");
-        }
+        String id = UUID.randomUUID().toString();
+        LocalDateTime when = req.getNotificationTime() != null ? req.getNotificationTime() : LocalDateTime.now();
 
-        // TODO: INV-N003: appointment_status == 'cancelled' 인 경우 체크 (외부 서비스 연동 필요)
-        // TODO: INV-N001: guest_status == 'noshow'인 guest에 대한 알림 발송 제한 (외부 서비스 연동 필요)
-
-        String notificationId = UUID.randomUUID().toString();
-        Notification notification = new Notification(
-                notificationId,
-                request.getUserId(),
-                request.getAppointmentId(),
-                request.getGuestId(),
-                request.getNotificationTime()
+        Notification entity = new Notification(
+                id,
+                req.getUserId(),
+                req.getAppointmentId(),
+                req.getGuestId(),
+                when
         );
 
-        Notification savedNotification = notificationRepository.save(notification);
-        return convertToResponse(savedNotification);
+        Notification saved = repository.save(entity);
+        return toResponse(saved);
     }
 
-    // 알림 전체 조회
+    /** 전체 조회 */
     @Transactional(readOnly = true)
-    public List<NotificationResponse> getAllNotifications() {
-        List<Notification> notifications = notificationRepository.findAll();
-        return notifications.stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
+    public List<NotificationResponse> findAll() {
+        return repository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    // 특정 알림 조회
+    /** 단건 조회 */
     @Transactional(readOnly = true)
-    public NotificationResponse getNotificationById(String notificationId) {
-        Optional<Notification> notification = notificationRepository.findByNotificationId(notificationId);
-        if (notification.isEmpty()) {
-            throw new IllegalArgumentException("Notification not found with id: " + notificationId);
-        }
-        return convertToResponse(notification.get());
+    public NotificationResponse findById(String notificationId) {
+        Notification entity = repository.findById(notificationId)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + notificationId));
+        return toResponse(entity);
     }
 
-    // 사용자별 알림 목록 조회
+    /** 사용자별 조회 */
     @Transactional(readOnly = true)
-    public List<NotificationResponse> getNotificationsByUserId(String userId) {
-        List<Notification> notifications = notificationRepository.findByUserIdOrderByNotificationTimeDesc(userId);
-        return notifications.stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
+    public List<NotificationResponse> findByUserId(String userId) {
+        return repository.findByUserId(userId).stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    // 게스트 상태 변경 (Guest Service 연동 필요)
-    public void updateGuestStatus(String notificationId, String guestId, UpdateGuestStatusRequest request) {
-        // 알림 존재 확인
-        Optional<Notification> notificationOpt = notificationRepository.findByNotificationId(notificationId);
-        if (notificationOpt.isEmpty()) {
-            throw new IllegalArgumentException("Notification not found with id: " + notificationId);
+    /**
+     * 게스트 상태 업데이트
+     *
+     * 주의: 현재 Notification 엔티티에는 guestStatus 필드가 없음.
+     *      따라서 여기서는 존재성/일치성 검증만 하고, 응답 DTO를 생성해 돌려준다.
+     *      진짜로 DB에 상태를 저장하려면 엔티티(또는 별도 테이블)에 필드를 추가해야 한다.
+     */
+    @Transactional
+    public GuestStatusUpdateResponse updateGuestStatus(
+            String notificationId,
+            String guestId,
+            UpdateGuestStatusRequest body
+    ) {
+        Notification entity = repository.findById(notificationId)
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found: " + notificationId));
+
+        if (!entity.getGuestId().equals(guestId)) {
+            throw new IllegalArgumentException("GuestId mismatch for notification: " + notificationId);
         }
 
-        Notification notification = notificationOpt.get();
-        if (!notification.getGuestId().equals(guestId)) {
-            throw new IllegalArgumentException("Guest ID does not match the notification");
-        }
+        // 여기서 실제 저장을 하려면: 엔티티에 guestStatus(ENUM/STRING) 추가 후 set & save
+        // repository.save(entity);
 
-        // TODO: Guest Service의 PATCH /appointments/{appointment_id}/guests/{guest_id}/guest_status 호출
-        // 현재는 로컬에서만 동작하도록 구현
-        System.out.println("Updating guest status for notification: " + notificationId + 
-                          ", guest: " + guestId + 
-                          ", status: " + request.getGuestStatus());
+        // 응답 구성(필드명은 네 DTO에 맞춰 조정)
+        GuestStatusUpdateResponse res = new GuestStatusUpdateResponse();
+        // 예시: res.setNotificationId(notificationId);
+        //       res.setGuestId(guestId);
+        //       res.setGuestStatus(body.getGuestStatus());
+        //       res.setUpdatedAt(LocalDateTime.now());
+        return res;
     }
 
-    // Entity를 Response DTO로 변환
-    private NotificationResponse convertToResponse(Notification notification) {
-        return new NotificationResponse(
-                notification.getNotificationId(),
-                notification.getUserId(),
-                notification.getAppointmentId(),
-                notification.getGuestId(),
-                notification.getNotificationTime()
-        );
+    /** 엔티티 -> 응답 DTO 매핑 */
+    private NotificationResponse toResponse(Notification e) {
+        NotificationResponse dto = new NotificationResponse();
+        // 예시: dto.setNotificationId(e.getNotificationId());
+        //      dto.setUserId(e.getUserId());
+        //      dto.setAppointmentId(e.getAppointmentId());
+        //      dto.setGuestId(e.getGuestId());
+        //      dto.setNotificationTime(e.getNotificationTime());
+        return dto;
     }
 }

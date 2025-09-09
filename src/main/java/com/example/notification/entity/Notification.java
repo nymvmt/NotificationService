@@ -2,13 +2,14 @@ package com.example.notification.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
-@Table(name = "notifications")
+@Table(name = "notification")
 public class Notification {
 
     @Id
-    @Column(name = "notification_id", length = 100)
+    @Column(name = "notification_id", length = 100, nullable = false)
     private String notificationId;
 
     @Column(name = "user_id", length = 100, nullable = false)
@@ -23,10 +24,8 @@ public class Notification {
     @Column(name = "notification_time", nullable = false)
     private LocalDateTime notificationTime;
 
-    // 기본 생성자
     public Notification() {}
 
-    // 생성자
     public Notification(String notificationId, String userId, String appointmentId, String guestId, LocalDateTime notificationTime) {
         this.notificationId = notificationId;
         this.userId = userId;
@@ -35,44 +34,23 @@ public class Notification {
         this.notificationTime = notificationTime;
     }
 
-    // Getter/Setter
-    public String getNotificationId() {
-        return notificationId;
-    }
+    public String getNotificationId() { return notificationId; }
+    public void setNotificationId(String notificationId) { this.notificationId = notificationId; }
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
+    public String getAppointmentId() { return appointmentId; }
+    public void setAppointmentId(String appointmentId) { this.appointmentId = appointmentId; }
+    public String getGuestId() { return guestId; }
+    public void setGuestId(String guestId) { this.guestId = guestId; }
+    public LocalDateTime getNotificationTime() { return notificationTime; }
+    public void setNotificationTime(LocalDateTime notificationTime) { this.notificationTime = notificationTime; }
 
-    public void setNotificationId(String notificationId) {
-        this.notificationId = notificationId;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Notification that)) return false;
+        return Objects.equals(notificationId, that.notificationId);
     }
-
-    public String getUserId() {
-        return userId;
-    }
-
-    public void setUserId(String userId) {
-        this.userId = userId;
-    }
-
-    public String getAppointmentId() {
-        return appointmentId;
-    }
-
-    public void setAppointmentId(String appointmentId) {
-        this.appointmentId = appointmentId;
-    }
-
-    public String getGuestId() {
-        return guestId;
-    }
-
-    public void setGuestId(String guestId) {
-        this.guestId = guestId;
-    }
-
-    public LocalDateTime getNotificationTime() {
-        return notificationTime;
-    }
-
-    public void setNotificationTime(LocalDateTime notificationTime) {
-        this.notificationTime = notificationTime;
-    }
+    @Override
+    public int hashCode() { return Objects.hash(notificationId); }
 }
