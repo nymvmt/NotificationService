@@ -28,14 +28,15 @@ public class NotificationService {
         // 중복 방지: 동일 appointmentId + guestId의 알림이 이미 있으면 그대로 반환하거나 예외
         boolean exists = repository.existsByAppointmentIdAndGuestId(req.getAppointmentId(), req.getGuestId());
         if (exists) {
-            // 이미 존재 시 그대로 찾아서 반환(업서트가 아니라면 예외로 바꿔도 됨)
+            // 이미 존재 시 그대로 찾아서 반환
             Notification already = repository.findByAppointmentIdAndGuestId(
                     req.getAppointmentId(), req.getGuestId()
             ).orElseThrow(() -> new IllegalStateException("Duplicate detected but not found."));
             return toResponse(already);
         }
 
-        String id = UUID.randomUUID().toString();
+        // noti1, noti2, noti3... 형식으로 ID 생성
+        String id = generateSequentialId();
         LocalDateTime when = req.getNotificationTime() != null ? req.getNotificationTime() : LocalDateTime.now();
 
         Notification entity = new Notification(
@@ -114,5 +115,11 @@ public class NotificationService {
                 e.getGuestId(),
                 e.getNotificationTime()
         );
+    }
+
+    // 순차적 ID 생성 메서드 추가
+    private String generateSequentialId() {
+        long count = repository.count();
+        return "noti" + (count + 1);
     }
 }
