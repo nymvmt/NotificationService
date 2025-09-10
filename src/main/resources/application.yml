@@ -1,5 +1,6 @@
 server:
-  port: ${SERVER_PORT:8086}
+  # ✅ Azure App Service가 주입하는 WEBSITES_PORT 사용, 기본값 8086
+  port: ${WEBSITES_PORT:8086}
 
 spring:
   application:
@@ -17,7 +18,7 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
-  sql: 
+  sql:
     init:
       mode: never
 
