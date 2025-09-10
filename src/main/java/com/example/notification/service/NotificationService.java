@@ -97,23 +97,22 @@ public class NotificationService {
         // 여기서 실제 저장을 하려면: 엔티티에 guestStatus(ENUM/STRING) 추가 후 set & save
         // repository.save(entity);
 
-        // 응답 구성(필드명은 네 DTO에 맞춰 조정)
-        GuestStatusUpdateResponse res = new GuestStatusUpdateResponse();
-        // 예시: res.setNotificationId(notificationId);
-        //       res.setGuestId(guestId);
-        //       res.setGuestStatus(body.getGuestStatus());
-        //       res.setUpdatedAt(LocalDateTime.now());
-        return res;
+        // 응답 구성
+        return new GuestStatusUpdateResponse(
+                entity.getAppointmentId(),
+                guestId,
+                body.getGuestStatus()
+        );
     }
 
     /** 엔티티 -> 응답 DTO 매핑 */
     private NotificationResponse toResponse(Notification e) {
-        NotificationResponse dto = new NotificationResponse();
-        // 예시: dto.setNotificationId(e.getNotificationId());
-        //      dto.setUserId(e.getUserId());
-        //      dto.setAppointmentId(e.getAppointmentId());
-        //      dto.setGuestId(e.getGuestId());
-        //      dto.setNotificationTime(e.getNotificationTime());
-        return dto;
+        return new NotificationResponse(
+                e.getNotificationId(),
+                e.getUserId(),
+                e.getAppointmentId(),
+                e.getGuestId(),
+                e.getNotificationTime()
+        );
     }
 }
